@@ -27,33 +27,48 @@ async function main() {
     // 开始签到
     for (const user of userinfo) {
       const headers = { 'cookie': 'token=' + user.token + '; userid=' + user.userid }
+      // console.log(headers)
       const userDetail = await send(`/user/detail?timestrap=${Date.now()}`, "GET", headers)
+      if (userDetail?.data?.nickname == null) {
+        printRed(`token过期或账号不存在, userid: ${user.userid}`)
+        errorMsg[user.userid] = {
+          msg: `token过期或账号不存在, userid: ${user.userid}`
+        }
+        continue
+      }
       printMagenta(`账号 ${userDetail?.data?.nickname} 开始领取VIP...`)
 
       // 开始听歌
-      printYellow(`开始每日听歌领取VIP...`)
+      printYellow(`开始听歌领取VIP...`)
       // 听歌获取vip
       const listen = await send(`/youth/listen/song?timestrap=${Date.now()}`, "GET", headers)
 
       if (listen.status === 1) {
-        printGreen("每日听歌领取成功")
+        printGreen("听歌领取成功")
+      } else if (listen.error_code === 130012) {
+        printGreen("今日已领取")
       } else {
         errorMsg[userDetail?.data?.nickname + " listen"] = listen
-        printRed("每日听歌领取失败")
+        printRed("听歌领取失败")
       }
 
       printYellow("开始领取VIP...")
       for (let i = 1; i <= 8; i++) {
-        // 签到获取vip
+        // ad获取vip
         const ad = await send(`/youth/vip?timestrap=${Date.now()}`, "GET", headers)
-
+        // 签到出现问题
+        // errorMsg[`${userDetail?.data?.nickname} ad${i}`] = ad
         if (ad.status === 1) {
           printGreen(`第${i}次领取成功`)
           if (i != 8) {
             await delay(30 * 1000)
           }
+        } else if (ad.error_code === 30002) {
+          printGreen("今天次数已用光")
+          break
         } else {
           printRed(`第${i}次领取失败`)
+          // console.dir(ad, { depth: null })
           errorMsg[userDetail?.data?.nickname + " ad"] = ad
           break
         }
@@ -78,8 +93,6 @@ async function main() {
   }
 
   if (api.killed) {
-    // 强制关闭进程
-    // 必须强制关闭，不然action不会停止
     process.exit(0)
   }
 }
